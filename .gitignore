@@ -1,0 +1,24 @@
+# Maven
+target/
+*.class
+*.jar
+dependency-reduced-pom.xml
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+out/
+
+# Журнали
+*.log
+logs/
+
+# Локальні конфігурації (паролі, шляхи)
+db.local.properties
+*.local.properties
+.env
+
+# ОС
+.DS_Store
+Thumbs.db
