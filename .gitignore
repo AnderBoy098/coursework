@@ -22,3 +22,6 @@ db.local.properties
 # ОС
 .DS_Store
 Thumbs.db
+
+# Збірка
+*.war
