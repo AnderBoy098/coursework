@@ -13,7 +13,8 @@ import java.util.logging.Logger;
 
 /**
  * Підключення до MySQL. Налаштування читаються з db.properties (classpath),
- * а за наявності файлу db.local.properties у робочому каталозі — перевизначаються ним.
+ * за наявності файлу db.local.properties у робочому каталозі — перевизначаються ним,
+ * а системні властивості -Ddb.url, -Ddb.user, -Ddb.password мають найвищий пріоритет.
  * Жорстко заданих абсолютних шляхів немає.
  */
 public final class DatabaseConnection {
@@ -44,6 +45,13 @@ public final class DatabaseConnection {
                 LOG.info("Застосовано локальні налаштування " + LOCAL);
             } catch (IOException e) {
                 LOG.log(Level.WARNING, "Не вдалося прочитати " + LOCAL, e);
+            }
+        }
+        // Переозначення системними властивостями, напр. CATALINA_OPTS="-Ddb.password=secret"
+        for (String key : new String[]{"db.url", "db.user", "db.password"}) {
+            String v = System.getProperty(key);
+            if (v != null) {
+                p.setProperty(key, v);
             }
         }
         return p;

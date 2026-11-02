@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee" version="4.0">
+
+    <display-name>event-manager-server</display-name>
+
+    <listener>
+        <listener-class>ua.pntu.events.server.servlet.AppLifecycleListener</listener-class>
+    </listener>
+
+    <servlet><servlet-name>PersonServlet</servlet-name><servlet-class>ua.pntu.events.server.servlet.PersonServlet</servlet-class></servlet>
+    <servlet-mapping><servlet-name>PersonServlet</servlet-name><url-pattern>/persons</url-pattern></servlet-mapping>
+
+    <servlet><servlet-name>EventServlet</servlet-name><servlet-class>ua.pntu.events.server.servlet.EventServlet</servlet-class></servlet>
+    <servlet-mapping><servlet-name>EventServlet</servlet-name><url-pattern>/events</url-pattern></servlet-mapping>
+
+    <servlet><servlet-name>ResourceServlet</servlet-name><servlet-class>ua.pntu.events.server.servlet.ResourceServlet</servlet-class></servlet>
+    <servlet-mapping><servlet-name>ResourceServlet</servlet-name><url-pattern>/resources</url-pattern></servlet-mapping>
+
+    <servlet><servlet-name>TaskServlet</servlet-name><servlet-class>ua.pntu.events.server.servlet.TaskServlet</servlet-class></servlet>
+    <servlet-mapping><servlet-name>TaskServlet</servlet-name><url-pattern>/tasks</url-pattern></servlet-mapping>
+
+    <servlet><servlet-name>TaskLinksServlet</servlet-name><servlet-class>ua.pntu.events.server.servlet.TaskLinksServlet</servlet-class></servlet>
+    <servlet-mapping><servlet-name>TaskLinksServlet</servlet-name><url-pattern>/task-links</url-pattern></servlet-mapping>
+</web-app>
