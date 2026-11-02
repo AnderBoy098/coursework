@@ -1,11 +1,9 @@
 package ua.pntu.events.server.model;
 
-import java.util.Optional;
-
 /**
  * Стани життєвого циклу завдання:
  * СТВОРЕНО → ПРИЗНАЧЕНО → ВИКОНУЄТЬСЯ → ВИКОНАНО.
- * Допустимі лише послідовні переходи вперед.
+ * Допустимість переходів перевіряється на Service-рівні (TaskService.isAllowedTransition).
  */
 public enum TaskStatus {
     CREATED("СТВОРЕНО"),
@@ -21,16 +19,5 @@ public enum TaskStatus {
 
     public String getLabel() {
         return label;
-    }
-
-    /** Наступний стан; для кінцевого стану DONE — порожньо. */
-    public Optional<TaskStatus> next() {
-        TaskStatus[] all = values();
-        return ordinal() + 1 < all.length ? Optional.of(all[ordinal() + 1]) : Optional.empty();
-    }
-
-    /** Чи допустимий перехід з поточного стану до target. */
-    public boolean canTransitionTo(TaskStatus target) {
-        return next().filter(n -> n == target).isPresent();
     }
 }
