@@ -1,56 +1,91 @@
-# Інформаційна система організації подій і контролю завдань (варіант 23)
+# Інформаційна система організації подій і контролю завдань
 
-Курсова робота з дисципліни «Кросплатформене програмування». Студент: Скляр А. О., гр. 202-TH.
+Курсова робота з дисципліни «Кросплатформене програмування», варіант 23.
+Студент: Скляр Андрій Олександрович, група 202-TH. Керівник: Заїка С. О.
 
-## Структура
-- `server/` — серверна частина (Maven, WAR для Tomcat 9, Servlet API 4.0.1, Jackson, JDBC/MySQL)
-- `client/` — JavaFX-клієнт (Maven, Java 21, HTTP-клієнт + ObjectMapper)
-- `database.sql` — створення БД `event_manager` з нуля + демонстраційні дані
-- `client/sample-data/` — CSV-файли для імпорту (`tasks.csv`, `resources.csv`, `tasks_with_errors.csv`), шляхи відносні
-- `docs/diagrams/` — схеми diagrams.net (`.drawio`) та зображення
+Клієнт–серверна система для організаторів подій: облік подій, завдань, відповідальних осіб і ресурсів;
+контроль завдань за чотиристанним життєвим циклом **СТВОРЕНО → ПРИЗНАЧЕНО → ВИКОНУЄТЬСЯ → ВИКОНАНО**;
+автоматичний розрахунок інтегрального показника пріоритету
+**I = 0,40·F1 + 0,35·F2 + 0,25·F3** (F1 — близькість дедлайну, F2 — критичність, F3 — кількість залежних завдань,
+кожен фактор нормовано до 0–100); фоновий імпорт завдань і ресурсів із CSV.
 
-## Запуск (етап 1)
-1. Запустити MySQL у XAMPP, у phpMyAdmin виконати `database.sql`.
-2. За потреби створити `server/db.local.properties` (не потрапляє в git) і перевизначити `db.url`, `db.user`, `db.password`.
-3. Перевірка підключення:
-   ```
-   cd server
-   mvn compile exec:java
-   ```
-4. Клієнт: `cd client && mvn javafx:run`.
+Маршрут обробки запиту: `JavaFX → HttpEventManagerClient → HTTP/JSON → Servlet → Service → DAO → JDBC → MySQL`.
 
-## Етап II: DAO, Service, валідація, показник, життєвий цикл
-Пакети `server/src/main/java/ua/pntu/events/server`: `model`, `db`, `dao`, `service`, `util`, `demo`.
+## Технології
+Java 21, Maven, JavaFX 21, Servlet API 4.0.1 (`javax.servlet.*`, Apache Tomcat 9.x), Jackson 2.18 (JSON),
+MySQL 8 / MariaDB (XAMPP), JDBC (MySQL Connector/J 8.4), JUnit 5, `java.util.logging`.
 
-- DAO (JDBC, PreparedStatement): `PersonDAO`, `EventDAO`, `ResourceDAO`, `TaskDAO`, `TaskDependencyDAO`, `TaskResourceDAO`
-- Service: `PersonService`, `EventService`, `ResourceService`, `TaskService`, `PriorityCalculator`
-- Життєвий цикл завдання: `CREATED → ASSIGNED → IN_PROGRESS → DONE` (`TaskService.isAllowedTransition`)
-- Показник: `I = 0,40·F1 + 0,35·F2 + 0,25·F3` (`PriorityCalculator`)
-- Журнал: `server/logs/server.log` (java.util.logging, не потрапляє в git)
+## Структура репозиторію
+| Каталог / файл | Призначення |
+|----------------|-------------|
+| `server/` | Maven-проєкт серверної частини (WAR): `model`, `dao`, `service`, `servlet`, `db`, `util`, `demo`; тести `src/test` |
+| `client/` | Maven-проєкт JavaFX-клієнта: `model`, `api` (HTTP-клієнт), `csv` (імпорт), `ui`; тести `src/test` |
+| `client/sample-data/` | CSV-файли: `tasks.csv`, `resources.csv`, `tasks_with_errors.csv` |
+| `database.sql` | Створення БД `event_manager` з нуля та демонстраційні дані |
+| `docs/` | Схеми (`diagrams/`), приклади HTTP-запитів, сценарій демонстрації |
 
-Демонстрація роботи Service з MySQL (після виконання `database.sql`):
+## 1. Підготовка MySQL
+1. Запустіть MySQL у XAMPP.
+2. У phpMyAdmin (вкладка «SQL» або «Імпорт») виконайте `database.sql` — буде створено базу `event_manager`
+   (6 таблиць) і початкові записи. Скрипт можна виконувати повторно: він перестворює базу.
+3. Якщо пароль користувача `root` не порожній, задайте його **не в коді**, а одним зі способів:
+   системні властивості `-Ddb.url`, `-Ddb.user`, `-Ddb.password` або файл `db.local.properties`
+   (ігнорується git).
+
+## 2. Складання й запуск сервера
 ```
 cd server
-mvn compile exec:java -Dexec.mainClass=ua.pntu.events.server.demo.ServerDemo
+mvn clean package          # створює server/target/event-manager-server.war
 ```
+Скопіюйте WAR у каталог `webapps` Apache Tomcat 9.x і запустіть Tomcat. Пароль до БД (за потреби) передайте так:
+`set CATALINA_OPTS=-Ddb.password=ваш_пароль` (Windows) перед запуском Tomcat.
+Перевірка: `http://localhost:8080/event-manager-server/tasks` повертає JSON.
+Приклади запитів — `docs/api-tests.md`. Журнал: `logs/server.log` у робочому каталозі Tomcat.
 
-## Етап III: HTTP/JSON, Servlet, JavaFX-клієнт
-Маршрут: `JavaFX → HttpEventManagerClient → HTTP/JSON → Servlet → Service → DAO → JDBC → MySQL`.
+## 3. Запуск JavaFX-клієнта
+```
+cd client
+mvn javafx:run
+```
+Якщо сервер на іншій адресі: `mvn javafx:run -Dserver.url=http://host:port/event-manager-server`.
+Вкладки: «Завдання», «Події», «Відповідальні особи», «Ресурси». Журнал клієнта: `logs/client.log`.
 
+## 4. Тести JUnit 5
+Тести не потребують JavaFX, Tomcat і робочої БД (DAO замінюються версіями в пам'яті).
+```
+cd server
+mvn clean test             # 57 модульних тестів
+cd ../client
+mvn clean test             # 14 тестів CSV-імпорту
+```
+Складання сервера з тестами: `cd server && mvn clean package` (BUILD SUCCESS, актуальний WAR у `target/`).
+
+## 5. CSV-імпорт
+Кнопка «Імпортувати CSV» на вкладках «Завдання» та «Ресурси». Імпорт виконується у фоновому `Task` із `ProgressBar`,
+дані передаються на сервер тим самим HTTP-клієнтом, предметну валідацію виконує сервер.
+
+Формат: UTF-8, роздільник `;`, перший рядок — заголовок, порожні рядки ігноруються. Шляхи відносні
+(`Path.of("sample-data", "tasks.csv")`; запуск із кореня репозиторію також підтримується).
+
+| Файл | Стовпці | Приклад |
+|------|---------|---------|
+| `tasks.csv` | `event_id;title;description;deadline;criticality;assignee_email` | `1;Підготувати збірник тез;Верстка;2026-11-15 12:00;4;sklyar@example.com` |
+| `resources.csv` | `name;resource_type;total_quantity;unit` | `Ноутбук;Обладнання;10;шт.` |
+
+Неправильний заголовок, відсутній або порожній файл — імпорт не починається. Рядок із неправильною кількістю полів,
+нечисловим значенням, некоректною датою, порожнім обов'язковим полем або невідомим виконавцем пропускається; рядок, який
+відхилив сервер (наприклад, критичність поза 1–5, неіснуюча подія, **дублікат**), рахується окремо.
+Повторний імпорт тих самих файлів не створює дублікатів: завдання (назва в межах події) і ресурси (назва) унікальні.
+`tasks_with_errors.csv` демонструє всі ці правила (очікувано: 1 імпортовано, 4 пропущено, 1 відхилено сервером).
+
+## HTTP-маршрути
 | URL | GET | POST (`action`) |
 |-----|-----|-----------------|
-| `/persons` | список | `add`, `update`, `delete` |
-| `/events` | список | `add`, `update`, `delete` |
-| `/resources` | список | `add`, `update`, `delete` |
-| `/tasks` | список за показником I (`?eventId=` — лише завдання події) | `add`, `update`, `delete`, `assign`, `transition`, `refresh` |
+| `/persons`, `/events`, `/resources` | список | `add`, `update`, `delete` |
+| `/tasks` | список за показником I | `add`, `update`, `delete`, `assign`, `transition`, `refresh` |
 | `/task-links` | залежності й ресурси завдання (`?id=`) | `addDependency`, `removeDependency`, `addResource`, `removeResource` |
 
-Помилки: HTTP 400 (некоректні дані, заборонений перехід) або 500, тіло `{"error": "..."}`.
+Помилки: HTTP 400 (некоректні дані, заборонений перехід) або 500; тіло `{"error": "..."}`.
 
-### Запуск
-1. MySQL (XAMPP) запущено, `database.sql` виконано.
-2. Сервер: `cd server && mvn clean package` → `server/target/event-manager-server.war` скопіювати в `webapps` Tomcat 9.x, запустити Tomcat.
-   Пароль до БД, якщо він не порожній: `CATALINA_OPTS=-Ddb.password=ваш_пароль` (також `-Ddb.url`, `-Ddb.user`).
-3. Перевірка сервера: `http://localhost:8080/event-manager-server/tasks` у браузері; приклади запитів — `docs/api-tests.md`.
-4. Клієнт: `cd client && mvn javafx:run` (інша адреса сервера: `-Dserver.url=http://host:port/event-manager-server`).
-5. CSV: вкладки «Завдання» і «Ресурси» → «Імпортувати CSV» (`client/sample-data`).
+## Документація
+`docs/api-tests.md` — перевірка Servlet окремо від JavaFX; `docs/demo-scenario.md` — сценарій демонстрації (8–10 хв).
