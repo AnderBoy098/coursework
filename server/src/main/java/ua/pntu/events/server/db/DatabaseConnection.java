@@ -22,6 +22,7 @@ public final class DatabaseConnection {
     private static final Logger LOG = Logger.getLogger(DatabaseConnection.class.getName());
     private static final String DEFAULTS = "db.properties";
     private static final String LOCAL = "db.local.properties";
+    private static final String MYSQL_DRIVER = "com.mysql.cj.jdbc.Driver";
 
     private static final Properties PROPS = loadProperties();
 
@@ -29,6 +30,8 @@ public final class DatabaseConnection {
     }
 
     private static Properties loadProperties() {
+        loadDriver();
+
         Properties p = new Properties();
         try (InputStream in = DatabaseConnection.class.getClassLoader().getResourceAsStream(DEFAULTS)) {
             if (in == null) {
@@ -38,6 +41,7 @@ public final class DatabaseConnection {
         } catch (IOException e) {
             throw new IllegalStateException("Помилка читання " + DEFAULTS, e);
         }
+
         Path local = Path.of(LOCAL);
         if (Files.exists(local)) {
             try (InputStream in = Files.newInputStream(local)) {
@@ -47,6 +51,7 @@ public final class DatabaseConnection {
                 LOG.log(Level.WARNING, "Не вдалося прочитати " + LOCAL, e);
             }
         }
+
         // Переозначення системними властивостями, напр. CATALINA_OPTS="-Ddb.password=secret"
         for (String key : new String[]{"db.url", "db.user", "db.password"}) {
             String v = System.getProperty(key);
@@ -55,6 +60,14 @@ public final class DatabaseConnection {
             }
         }
         return p;
+    }
+
+    private static void loadDriver() {
+        try {
+            Class.forName(MYSQL_DRIVER);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException("Не знайдено JDBC-драйвер MySQL: " + MYSQL_DRIVER, e);
+        }
     }
 
     /** Створює нове з'єднання з БД. Закривати має викликач (try-with-resources). */
