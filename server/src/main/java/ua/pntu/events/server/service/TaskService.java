@@ -337,6 +337,10 @@ public class TaskService extends BaseService {
         if (eventDao.getById(t.getEventId()).isEmpty()) {
             throw new ValidationException("Події з id=" + t.getEventId() + " не існує");
         }
+        Optional<Task> same = taskDao.findByEventAndTitle(t.getEventId(), t.getTitle());
+        if (same.isPresent() && same.get().getId() != t.getId()) {
+            throw new ValidationException("У події вже є завдання з назвою «" + t.getTitle() + "»");
+        }
     }
 
     /** Чи досяжне завдання target, рухаючись за залежностями від from (пошук вшир). */

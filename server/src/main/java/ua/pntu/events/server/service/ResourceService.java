@@ -63,7 +63,7 @@ public class ResourceService extends BaseService {
         });
     }
 
-    private void validate(Resource r) {
+    private void validate(Resource r) throws java.sql.SQLException {
         if (r == null) {
             throw new ValidationException("Ресурс не заданий");
         }
@@ -72,6 +72,10 @@ public class ResourceService extends BaseService {
         r.setUnit(requireText(r.getUnit(), "Одиниця виміру", 20));
         if (r.getTotalQuantity() < 0) {
             throw new ValidationException("Кількість ресурсу не може бути від'ємною");
+        }
+        Optional<Resource> same = resourceDao.findByName(r.getName());
+        if (same.isPresent() && same.get().getId() != r.getId()) {
+            throw new ValidationException("Ресурс із назвою «" + r.getName() + "» уже існує");
         }
     }
 }

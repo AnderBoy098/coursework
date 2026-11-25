@@ -52,6 +52,18 @@ public class TaskDAO {
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 
+    /** Вузька операція: завдання події з такою назвою (без урахування регістру) — захист від дублікатів. */
+    public Optional<Task> findByEventAndTitle(int eventId, String title) throws SQLException {
+        try (Connection c = DatabaseConnection.getConnection();
+             PreparedStatement ps = c.prepareStatement(SELECT + " WHERE event_id = ? AND LOWER(title) = LOWER(?) LIMIT 1")) {
+            ps.setInt(1, eventId);
+            ps.setString(2, title);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(map(rs)) : Optional.empty();
+            }
+        }
+    }
+
     /** Редагує лише дані завдання; стан, виконавець і показник змінюються окремими операціями. */
     public boolean update(Task t) throws SQLException {
         String sql = "UPDATE tasks SET event_id = ?, title = ?, description = ?, deadline = ?, "

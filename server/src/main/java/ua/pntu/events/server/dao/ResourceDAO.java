@@ -50,6 +50,17 @@ public class ResourceDAO {
         }
     }
 
+    /** Вузька операція: пошук ресурсу за назвою без урахування регістру (захист від дублікатів). */
+    public Optional<Resource> findByName(String name) throws SQLException {
+        try (Connection c = DatabaseConnection.getConnection();
+             PreparedStatement ps = c.prepareStatement(SELECT + " WHERE LOWER(name) = LOWER(?) LIMIT 1")) {
+            ps.setString(1, name);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(map(rs)) : Optional.empty();
+            }
+        }
+    }
+
     public boolean update(Resource r) throws SQLException {
         String sql = "UPDATE resources SET name = ?, resource_type = ?, total_quantity = ?, unit = ? WHERE id = ?";
         try (Connection c = DatabaseConnection.getConnection();
