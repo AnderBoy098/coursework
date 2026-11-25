@@ -48,7 +48,9 @@ class TasksTab extends CrudTab<Task> {
     private final ComboBox<Resource> resourceBox = new ComboBox<>();
     private final TextField resourceQty = new TextField();
 
-    private final Button importButton = new Button("Імпортувати CSV");
+    private final ImportPanel importPanel = new ImportPanel("Імпортувати CSV",
+            progress -> new CsvImporter(this.api).importTasks(SamplePaths.resolve("tasks.csv"), progress),
+            this::refresh, this::report);
     private final Map<Integer, String> personNames = new HashMap<>();
     private final Map<Integer, String> eventTitles = new HashMap<>();
     private final Map<Integer, String> resourceNames = new HashMap<>();
@@ -56,10 +58,11 @@ class TasksTab extends CrudTab<Task> {
     TasksTab(HttpEventManagerClient api, Consumer<String> status) {
         super("Завдання", api, status);
         init();
-        importButton.setOnAction(e -> Ui.runImport(importButton,
-                () -> new CsvImporter(api).importTasks(SamplePaths.resolve("tasks.csv")),
-                this::refresh, this::report));
-        buttons.getChildren().add(importButton);
+    }
+
+    @Override
+    protected Node extraBottom() {
+        return importPanel;
     }
 
     // ===================== довідники для ComboBox =====================

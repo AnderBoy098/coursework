@@ -20,9 +20,11 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 /**
- * Початок CSV-імпорту (етап 3): читання файла, розбір рядків і передавання коректних даних серверу
- * через HttpEventManagerClient — тим самим маршрутом, що й ручне введення.
- * Імпорт напряму в MySQL не виконується. Фоновий Task із ProgressBar буде додано на етапі 4.
+ * CSV-імпорт: читання файла (UTF-8), перевірка заголовка, кількості полів і типів значень, послідовне
+ * опрацювання рядків і передавання коректних даних серверу через HttpEventManagerClient — тим самим
+ * маршрутом, що й ручне введення. Імпорт напряму в MySQL не виконується.
+ * Клас не залежить від JavaFX: у фоновому потоці його запускає javafx.concurrent.Task (див. ImportPanel),
+ * а хід виконання передається через ProgressListener.
  *
  * Формат: UTF-8, роздільник «;», перший рядок — заголовок.
  *   tasks.csv:     event_id;title;description;deadline;criticality;assignee_email
@@ -38,13 +40,26 @@ public class CsvImporter {
     public static final String[] TASK_HEADER = {"event_id", "title", "description", "deadline", "criticality", "assignee_email"};
     public static final String[] RESOURCE_HEADER = {"name", "resource_type", "total_quantity", "unit"};
 
-    /** Підсумок імпорту: прочитано, імпортовано, пропущено через формат, відхилено сервером. */
-    public record ImportResult(int total, int imported, int skipped, int rejected, List<String> messages) {
+    /**
+     * Підсумок імпорту: прочитано, імпортовано, пропущено через формат, відхилено сервером.
+     * aborted = true, якщо імпорт перервано (наприклад, сервер став недоступним).
+     */
+    public record ImportResult(int total, int imported, int skipped, int rejected, boolean aborted, List<String> messages) {
         public String summary() {
             return "Прочитано рядків: " + total + "; імпортовано: " + imported
-                    + "; пропущено (некоректний формат): " + skipped + "; відхилено сервером: " + rejected;
+                    + "; пропущено (некоректний формат): " + skipped + "; відхилено сервером: " + rejected
+                    + (aborted ? "; ІМПОРТ ПЕРЕРВАНО" : "");
         }
     }
+
+    /** Отримувач ходу виконання: скільки рядків із скількох опрацьовано. */
+    @FunctionalInterface
+    public interface ProgressListener {
+        void update(int done, int total, String message);
+    }
+
+    /** Слухач-заглушка для викликів без відображення прогресу. */
+    public static final ProgressListener NO_PROGRESS = (done, total, message) -> { };
 
     private record Row(int line, String[] cells) {
     }
@@ -58,7 +73,13 @@ public class CsvImporter {
     // ===================== Завдання =====================
 
     public ImportResult importTasks(Path file) throws IOException {
+        return importTasks(file, NO_PROGRESS);
+    }
+
+    public ImportResult importTasks(Path file, ProgressListener progress) throws IOException {
+        LOG.info("Імпорт завдань розпочато: " + file);
         List<Row> rows = readRows(file, TASK_HEADER);
+        progress.update(0, rows.size(), "Прочитано рядків: " + rows.size());
         Map<String, Integer> personByEmail = new HashMap<>();
         for (Person p : api.getPersons()) {
             personByEmail.put(p.getEmail().toLowerCase(Locale.ROOT), p.getId());
@@ -66,9 +87,13 @@ public class CsvImporter {
         int imported = 0;
         int skipped = 0;
         int rejected = 0;
+        int done = 0;
+        boolean aborted = false;
         List<String> messages = new ArrayList<>();
 
         for (Row row : rows) {
+            progress.update(done, rows.size(), "Оброблено " + done + " з " + rows.size());
+            done++;
             String[] c = row.cells();
             if (c.length != TASK_HEADER.length) {
                 skipped++;
@@ -99,24 +124,42 @@ public class CsvImporter {
                 api.addTask(t, assigneeId);   // JavaFX → HTTP → Servlet → Service → DAO → MySQL
                 imported++;
             } catch (ApiException e) {
+                if (e.getStatus() == 0) {     // сервер недоступний: подальша обробка безглузда
+                    aborted = true;
+                    done--;                   // цей рядок не оброблено
+                    messages.add("Імпорт перервано на рядку " + row.line() + ": " + e.getMessage());
+                    LOG.severe("CSV: імпорт перервано на рядку " + row.line() + ": " + e.getMessage());
+                    break;
+                }
                 rejected++;
                 messages.add("Рядок " + row.line() + " відхилено сервером: " + e.getMessage());
                 LOG.warning("CSV: рядок " + row.line() + " відхилено сервером: " + e.getMessage());
             }
         }
-        return finish(file, rows.size(), imported, skipped, rejected, messages);
+        progress.update(done, rows.size(), "Оброблено " + done + " з " + rows.size());
+        return finish(file, rows.size(), imported, skipped, rejected, aborted, messages);
     }
 
     // ===================== Ресурси =====================
 
     public ImportResult importResources(Path file) throws IOException {
+        return importResources(file, NO_PROGRESS);
+    }
+
+    public ImportResult importResources(Path file, ProgressListener progress) throws IOException {
+        LOG.info("Імпорт ресурсів розпочато: " + file);
         List<Row> rows = readRows(file, RESOURCE_HEADER);
+        progress.update(0, rows.size(), "Прочитано рядків: " + rows.size());
         int imported = 0;
         int skipped = 0;
         int rejected = 0;
+        int done = 0;
+        boolean aborted = false;
         List<String> messages = new ArrayList<>();
 
         for (Row row : rows) {
+            progress.update(done, rows.size(), "Оброблено " + done + " з " + rows.size());
+            done++;
             String[] c = row.cells();
             if (c.length != RESOURCE_HEADER.length) {
                 skipped++;
@@ -139,12 +182,20 @@ public class CsvImporter {
                 api.addResource(r);
                 imported++;
             } catch (ApiException e) {
+                if (e.getStatus() == 0) {
+                    aborted = true;
+                    done--;
+                    messages.add("Імпорт перервано на рядку " + row.line() + ": " + e.getMessage());
+                    LOG.severe("CSV: імпорт перервано на рядку " + row.line() + ": " + e.getMessage());
+                    break;
+                }
                 rejected++;
                 messages.add("Рядок " + row.line() + " відхилено сервером: " + e.getMessage());
                 LOG.warning("CSV: рядок " + row.line() + " відхилено сервером: " + e.getMessage());
             }
         }
-        return finish(file, rows.size(), imported, skipped, rejected, messages);
+        progress.update(done, rows.size(), "Оброблено " + done + " з " + rows.size());
+        return finish(file, rows.size(), imported, skipped, rejected, aborted, messages);
     }
 
     // ===================== Читання та розбір =====================
@@ -177,9 +228,10 @@ public class CsvImporter {
         return rows;
     }
 
-    private ImportResult finish(Path file, int total, int imported, int skipped, int rejected, List<String> messages) {
-        ImportResult result = new ImportResult(total, imported, skipped, rejected, messages);
-        LOG.info("CSV " + file + ": " + result.summary());
+    private ImportResult finish(Path file, int total, int imported, int skipped, int rejected,
+                                boolean aborted, List<String> messages) {
+        ImportResult result = new ImportResult(total, imported, skipped, rejected, aborted, messages);
+        LOG.info("Імпорт завершено (" + file + "): " + result.summary());
         return result;
     }
 

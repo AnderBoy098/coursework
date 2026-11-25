@@ -1,7 +1,6 @@
 package ua.pntu.events.client.ui;
 
 import javafx.scene.Node;
-import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TextField;
@@ -21,15 +20,18 @@ class ResourcesTab extends CrudTab<Resource> {
     private final TextField type = new TextField();
     private final TextField quantity = new TextField();
     private final TextField unit = new TextField();
-    private final Button importButton = new Button("Імпортувати CSV");
+    private final ImportPanel importPanel = new ImportPanel("Імпортувати CSV",
+            progress -> new CsvImporter(this.api).importResources(SamplePaths.resolve("resources.csv"), progress),
+            this::refresh, this::report);
 
     ResourcesTab(HttpEventManagerClient api, Consumer<String> status) {
         super("Ресурси", api, status);
         init();
-        importButton.setOnAction(e -> Ui.runImport(importButton,
-                () -> new CsvImporter(api).importResources(SamplePaths.resolve("resources.csv")),
-                this::refresh, this::report));
-        buttons.getChildren().add(importButton);
+    }
+
+    @Override
+    protected Node extraBottom() {
+        return importPanel;
     }
 
     @Override

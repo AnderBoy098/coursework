@@ -49,6 +49,11 @@ abstract class CrudTab<T> extends Tab {
     protected void beforeLoad() {
     }
 
+    /** Додатковий елемент під кнопками (наприклад, панель CSV-імпорту); за замовчуванням немає. */
+    protected Node extraBottom() {
+        return null;
+    }
+
     /** Викликається після оновлення таблиці. */
     protected void afterLoad() {
     }
@@ -83,6 +88,10 @@ abstract class CrudTab<T> extends Tab {
         });
 
         VBox bottom = new VBox(10, buildForm(), buttons);
+        Node extra = extraBottom();
+        if (extra != null) {
+            bottom.getChildren().add(extra);
+        }
         bottom.setPadding(new Insets(10));
         BorderPane root = new BorderPane();
         root.setCenter(table);

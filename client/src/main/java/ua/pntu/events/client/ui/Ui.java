@@ -3,7 +3,6 @@ package ua.pntu.events.client.ui;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.TableColumn;
 import ua.pntu.events.client.csv.CsvImporter;
@@ -12,8 +11,6 @@ import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /** Допоміжні методи JavaFX-інтерфейсу: повідомлення, колонки таблиць, формати, запуск імпорту. */
@@ -78,40 +75,8 @@ final class Ui {
         }
     }
 
-    /**
-     * Виконує CSV-імпорт у фоновому потоці (javafx.concurrent.Task), щоб вікно не зависало.
-     * ProgressBar і остаточна обробка помилок будуть додані на етапі 4.
-     */
-    static void runImport(Button button, Callable<CsvImporter.ImportResult> work, Runnable afterSuccess,
-                          Consumer<String> status) {
-        button.setDisable(true);
-        status.accept("Імпорт CSV виконується…");
-        javafx.concurrent.Task<CsvImporter.ImportResult> job = new javafx.concurrent.Task<>() {
-            @Override
-            protected CsvImporter.ImportResult call() throws Exception {
-                return work.call();
-            }
-        };
-        job.setOnSucceeded(e -> {
-            button.setDisable(false);
-            CsvImporter.ImportResult r = job.getValue();
-            status.accept(r.summary());
-            showImportSummary(r);
-            afterSuccess.run();
-        });
-        job.setOnFailed(e -> {
-            button.setDisable(false);
-            Throwable ex = job.getException();
-            String msg = ex == null || ex.getMessage() == null ? "Невідома помилка імпорту" : ex.getMessage();
-            status.accept("Помилка імпорту: " + msg);
-            error(msg);
-        });
-        Thread t = new Thread(job, "csv-import");
-        t.setDaemon(true);
-        t.start();
-    }
-
-    private static void showImportSummary(CsvImporter.ImportResult r) {
+    /** Підсумок імпорту: інформаційне вікно, а якщо імпорт перервано — вікно помилки. */
+    static void showImportSummary(CsvImporter.ImportResult r) {
         StringBuilder sb = new StringBuilder(r.summary());
         List<String> msgs = r.messages();
         if (!msgs.isEmpty()) {
@@ -123,7 +88,11 @@ final class Ui {
                 sb.append("… ще ").append(msgs.size() - 10);
             }
         }
-        info("Результат імпорту CSV", sb.toString());
+        if (r.aborted()) {
+            error(sb.toString());
+        } else {
+            info("Результат імпорту CSV", sb.toString());
+        }
     }
 
     /** Безпечний виклик у потоці JavaFX. */

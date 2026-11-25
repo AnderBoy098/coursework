@@ -20,6 +20,7 @@ public class MainApp extends Application {
 
     @Override
     public void start(Stage stage) {
+        ClientLogging.init();
         HttpEventManagerClient api = new HttpEventManagerClient();
 
         Label title = new Label("Інформаційна система організації подій і контролю завдань");
